@@ -1,94 +1,91 @@
 # Acoustic Delamination Detection
 
-Concrete delaminates from the inside. Water gets into the rebar, the rebar rusts, the rust expands, and a
-void opens up between the steel and the surface — all of it invisible from outside. The standard way to find
-it is the **tap test**: hit the concrete with a hammer or a coin and listen. Solid concrete rings. Delaminated
-concrete gives back a flat, dead thud.
+A binary classifier that distinguishes intact from delaminated concrete using the sound of a knock.
 
-That works, but it takes a trained ear, and a junior engineer on their first survey does not have one yet.
-This project trains a classifier to make that call from a phone recording of the knock.
+Concrete delaminates internally when water reaches the rebar and the resulting corrosion expands, opening a
+void between the steel and the surface. The defect is invisible from outside. The standard field method for
+locating it is the tap test: strike the surface and listen. Intact concrete rings; delaminated concrete
+returns a flat, damped thud. Performing the test reliably requires a trained ear, which makes it a
+reasonable candidate for automation.
 
-**580 knock recordings across 37 concrete pillars → mel-spectrogram features → an SVM + gradient boosting +
-random forest ensemble that abstains when it isn't sure.** Everything runs on a laptop CPU in about ten
-minutes. No GPU, no cloud, no deep learning.
+This repository contains the dataset, the feature pipeline, and the model. 580 knock recordings across 37
+concrete pillars are reduced to 396-dimensional feature vectors and classified by an ensemble of an RBF-SVM,
+a gradient boosting model, and a random forest, with an abstention zone for low-confidence clips.
 
-The eventual target was a phone doing this offline in the field, which is why the signal-processing constants
-are fixed at 16 kHz and a 200 ms window and why the classifiers are small enough to serialize. This repo is
-the model and the dataset; the mobile side isn't part of it.
+## Results
 
-| | Original model | This model |
+| | First model | Current model |
 |---|---|---|
 | Cross-validation accuracy | 96.3% | 87.1% |
-| **6 genuinely unseen pillars** | **50.0%** | **100% (6/6)** |
-| Per-clip on those pillars | 56.9% | 91.7% |
+| 6 unseen pillars, per-pillar | 50.0% | 100% (6/6) |
+| 6 unseen pillars, per-clip | 56.9% | 91.7% |
 
-Those two columns are the whole story, and the interesting part is that the first row got *worse*.
+The cross-validation figure decreased while performance on unseen pillars roughly doubled. The reason for
+that is the substance of this project.
 
 ![Holdout accuracy comparison](figures/viz_headline_accuracy.png)
 
----
+## Why the first model failed
 
-## The 96% that wasn't real
+The initial model was an RBF-SVM over 128 mel features. Leave-one-pillar-out cross-validation placed it at
+96.3%. Tested afterwards on six newly recorded pillars, three intact and three delaminated, it classified 3
+of 6 correctly, and every intact pillar was labelled delaminated.
 
-The first version of this was a straightforward RBF-SVM on 128 mel features. Leave-one-pillar-out
-cross-validation put it at 96.3%, which felt like a finished project.
+Four hypotheses were checked:
 
-Then I recorded six new pillars — three good, three delaminated — with the same phone, on a different day.
-The model got 3 out of 6. Every single good pillar was called delaminated. On the pillars it had never seen,
-it was worse than a coin flip that always guesses "bad."
+Overfitting was ruled out. Training accuracy was 91%, below the cross-validation figure, indicating no
+memorization of the training set.
 
-Diagnosing it ruled things out one at a time:
+Class imbalance was ruled out. Ablating `class_weight` produced no measurable change.
 
-- **Not overfitting.** Training accuracy was 91%, below the CV number. There was no memorization to find.
-- **Not class imbalance.** Ablating `class_weight` changed nothing.
-- **It was distribution shift.** A PCA projection showed the new *good* clips landing squarely inside the
-  region of feature space the model had learned as *bad*. New room, new mic distance, new background noise —
-  the features moved, and the decision boundary didn't follow.
-- **And the pillar selection was rigged, by me.** The original training set used 27 of the 31 pillars. Four
-  had been dropped as "noisy recordings." Those four were the only examples of varied recording conditions
-  in the entire dataset. I had thrown away exactly the data that would have taught the model to handle a
-  new room.
+Distribution shift was confirmed. Projecting both sets into a shared PCA basis showed the new intact clips
+falling inside the region the model had learned as delaminated. The recordings were made in a different room
+at a different microphone distance, which moved the features while the decision boundary stayed fixed.
+
+Biased pillar selection was also confirmed. The training set used 27 of 31 available pillars; four had been
+excluded for noisy recording quality. Those four were the only examples of varied recording conditions in
+the dataset, so removing them removed the only signal about recording variability the model could have
+learned from.
 
 ![Feature space PCA](figures/viz_feature_space.png)
 
-The 96% was measuring the wrong thing. Every fold of that cross-validation drew its test pillar from the
-same handful of recording sessions as its training pillars, so "unseen pillar" never meant "unseen
-conditions." The number was real; what it implied was not.
+The 96.3% was not a false measurement, but it did not measure generalization. Every cross-validation fold
+drew its test pillar from the same small set of recording sessions as its training pillars, so holding out a
+pillar never held out a recording condition.
 
-## What changed
+## Changes in the current model
 
-Six things, roughly in order of how much they mattered:
+**All 31 training pillars, no exclusions.** The four previously excluded pillars were restored.
+Cross-validated accuracy fell from 96.3% to 87.1%, reflecting the additional recording variability now
+present in the evaluation rather than a degradation of the model.
 
-**All 31 training pillars, no exclusions.** The noisy ones went back in. Cross-validated accuracy immediately
-fell from 96.3% to 87.1%. That drop is the point — the model didn't get worse, the measurement got honest.
+**Per-clip CMVN.** Normalizing each mel spectrogram to zero mean and unit variance per frequency band
+removes the constant channel response of the microphone and room. The technique is standard in speech
+recognition, where the equivalent problem is the same speaker recorded over different transmission channels.
 
-**Per-clip CMVN.** Normalizing each mel spectrogram to zero mean and unit variance per frequency band strips
-out the constant channel response of the mic and the room. It's borrowed straight from speech recognition,
-where the same problem shows up as "same speaker, different telephone."
+**Augmentation ×5.** Each training clip is expanded into five: volume jitter (±6 dB, for source distance),
+additive Gaussian noise (20–35 dB SNR, for room noise), onset jitter (±10 ms, for windowing error), and
+pitch shift (±0.4 semitones, for resonance variation). Holdout clips are never augmented.
 
-**Augmentation ×5.** Each training clip becomes five: volume jitter (±6 dB, standing in for mic distance),
-Gaussian noise at 20–35 dB SNR (different rooms), onset jitter (±10 ms, sloppy windowing), and pitch shift
-(±0.4 semitones, slight resonance variation). Holdout clips are never augmented.
+**396 features instead of 128.** The original set was mel mean and standard deviation. Added: CMVN-normalized
+mel, delta-mel capturing temporal evolution, eight spectral shape descriptors, three temporal descriptors,
+and a decay time τ fitted to the post-onset RMS envelope. τ is the physically motivated feature: intact
+concrete dissipates vibrational energy slowly, delaminated concrete dissipates it rapidly.
 
-**396 features instead of 128.** The originals were mel mean and standard deviation. Added: CMVN'd mel,
-delta-mel for how the sound evolves, eight spectral shape descriptors, three temporal ones, and a decay time
-τ fitted to the post-onset RMS envelope. That last one is the physically motivated one — intact concrete
-dissipates vibrational energy slowly, delaminated concrete kills it fast — and it's the feature I'd keep if
-I had to keep only one.
+**Three classifiers rather than one.** An RBF-SVM for smooth nonlinear boundaries, gradient boosting for
+feature interactions, and a random forest for noise tolerance, averaged over `P(bad)`. At 31 pillars there is
+insufficient data to identify the correct inductive bias in advance, so averaging across three reduces the
+cost of choosing wrongly.
 
-**Three models instead of one.** RBF-SVM for smooth nonlinear boundaries, gradient boosting for feature
-interactions, random forest for noise tolerance. Average their `P(bad)`. With 31 pillars there isn't enough
-data to know in advance which inductive bias is right, so the ensemble hedges.
-
-**Abstention.** Any clip landing in `P(bad) ∈ [0.4, 0.6]` doesn't get a vote. The pillar verdict is the
-majority of the clips that were actually confident. A 51% prediction and a 99% prediction are not the same
-claim and shouldn't be counted the same way.
+**Abstention.** Clips falling in `P(bad) ∈ [0.4, 0.6]` are excluded from the vote, and the pillar verdict is
+the majority of the remaining clips. A prediction at 51% carries different information from one at 99% and
+is not treated as equivalent.
 
 ![Pipeline](figures/viz_pipeline.png)
 
-## The data
+## Dataset
 
-580 recordings, all mono 16 kHz, each one knock lasting roughly 0.15–0.58 seconds.
+580 recordings, mono, 16 kHz, each containing one knock of roughly 0.15–0.58 seconds.
 
 ```
 data/
@@ -99,137 +96,131 @@ data/
 ```
 
 Filenames encode pillar and knock: `goodConcrete3-07.wav` is the 7th knock on good pillar 3. The holdout
-subdirectories carry a trailing digit from the segmentation script that split them out of the `.m4a`
-originals — `bad_194/` is pillar 19, `good_144/` is pillar 14. The notebooks strip it before reporting.
+subdirectories carry a trailing digit left by the segmentation script that split them out of the `.m4a`
+originals, so `bad_194/` is pillar 19 and `good_144/` is pillar 14. The notebooks strip it before reporting.
 
-The six holdout pillars were locked away before any of the v1 work started and touched exactly once, in the
-final evaluation cell. Nothing about the feature design, the model choice, the hyperparameters, or the
-abstention window was chosen with any knowledge of them. That discipline is the only reason the 100% means
-anything.
+The six holdout pillars were separated before any of the current model's development and were used once, in
+the final evaluation cell. No feature, hyperparameter, model, or threshold was selected with reference to
+them.
 
-**Evaluation is leave-one-pillar-out, never a random clip split.** All the clips from one pillar share a
-recording session, a microphone position, and a physical piece of concrete. Splitting them randomly puts
-near-duplicates on both sides of the line and produces a number in the high nineties that means nothing.
+## Evaluation protocol
+
+Evaluation is leave-one-pillar-out, never a random clip-level split. All clips from a single pillar share a
+recording session, a microphone position, and one physical piece of concrete, so a random split places
+near-duplicates on both sides of the partition and inflates the result substantially.
 
 ![Waveforms](figures/viz_waveforms.png)
 
 ![Mel spectrograms](figures/viz_mel_spectrograms.png)
 
-The difference is visible if you know where to look — good knocks hold energy in the low bands longer — but
-it's not something you'd reliably eyeball across 580 clips, which is the argument for a classifier.
+The class difference is partially visible in the spectrograms, with intact knocks retaining low-band energy
+longer, but it is not consistent enough across 580 clips to be applied by inspection.
 
-## Results
+## Detailed results
 
-On the six held-out pillars:
+Six held-out pillars:
 
-| Setup | Per-pillar | Per-clip |
+| Configuration | Per-pillar | Per-clip |
 |---|---|---|
 | Ensemble, threshold 0.5 | 83.3% (5/6) | 91.7% (66/72) |
-| **Ensemble + abstention** | **100% (6/6)** | 91.7% |
+| Ensemble with abstention | 100% (6/6) | 91.7% |
 | Gradient boosting alone | 100% (6/6) | 95.8% |
 | Random forest alone | 100% (6/6) | 95.8% |
 | SVM alone | 83.3% (5/6) | 91.7% |
-| Original SVM | 50.0% (3/6) | 56.9% |
+| First model | 50.0% (3/6) | 56.9% |
 
-Mean `P(bad)` was 13.6% on the good pillars and 82.3% on the delaminated ones. 3 clips out of 72 abstained —
-4.2%, or about one knock in a five-knock session, where the fix is "knock again."
+Mean `P(bad)` was 13.6% on intact pillars and 82.3% on delaminated ones. 3 of 72 clips abstained, a rate of
+4.2%, corresponding to roughly one knock in a five-knock sequence.
 
 ![Per-clip predictions](figures/viz_per_clip_with_abstention.png)
 
-Within-distribution, leave-one-pillar-out over the 31 training pillars gives 87.1% for the ensemble and
+Within distribution, leave-one-pillar-out over the 31 training pillars gives 87.1% for the ensemble and
 93.5% for the random forest alone.
 
-**Report both numbers or neither.** 87.1% cross-validated and 100% on holdout look contradictory until you
-notice they measure different things: 87.1% is 31 pillars' worth of hard cases including the noisy
-recordings, and 100% is six pillars — a sample small enough that one bad pillar would have made it 83%.
-Quoting either alone is misleading in a different direction.
+The two headline figures measure different quantities and are reported together. 87.1% covers 31 pillars
+including the noisy recordings; 100% covers six pillars, a sample small enough that a single additional
+error would reduce it to 83%. Either figure quoted alone misrepresents the result.
 
-### The one that nearly broke it
+### Failure case: bad_21
 
-`bad_21` is the only pillar the ensemble gets wrong at threshold 0.5. Ten clips, five of them called good,
-mean `P(bad)` of 58% — a tied vote resolved the wrong way. With abstention, three borderline clips drop out
-and the remaining seven split 4–3 in favour of BAD, which is correct but not exactly convincing. Gradient
-boosting and random forest each get it right on their own; the SVM is what drags the average down.
+`bad_21` is the only pillar the ensemble misclassifies at threshold 0.5. Of its ten clips, five are labelled
+intact, giving a mean `P(bad)` of 58% and a tied vote resolved incorrectly. Under abstention, three
+borderline clips are removed and the remaining seven split 4–3 toward the correct verdict, which is a narrow
+margin. Gradient boosting and the random forest each classify it correctly without assistance; the SVM
+accounts for most of the error in the average.
 
-I'd want to physically inspect that pillar. My guess is it's genuinely marginal — early-stage delamination,
-or a thin void — and that the model is picking up something real.
+The pillar warrants physical inspection. A plausible explanation is genuinely marginal delamination, such as
+an early-stage or thin void, in which case the model is responding to a real property of the sample.
 
 ![Confusion matrix](figures/viz_confusion_matrix.png)
 
-## Running it
+## Running the notebooks
 
-Python 3.14 with librosa, scikit-learn, numpy and matplotlib. Developed on macOS, nothing platform-specific.
+Python 3.14 with librosa, scikit-learn, numpy, and matplotlib.
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-Train and evaluate — around 10 minutes the first time, most of it feature extraction, then ~5 minutes on
-re-runs once features are cached to `model/`:
+Train and evaluate. The first run takes about ten minutes, most of it feature extraction; subsequent runs
+take about five once features are cached to `model/`.
 
 ```bash
 .venv/bin/jupyter nbconvert --to notebook --execute --inplace \
   --ExecutePreprocessor.timeout=900 notebooks/Ensemble_Abstention_Model.ipynb
 ```
 
-Regenerate the figures (~30 seconds, but it reads the feature cache, so run the model notebook first):
+Regenerate the figures. This reads the feature cache, so the model notebook must be run first.
 
 ```bash
 .venv/bin/jupyter nbconvert --to notebook --execute --inplace \
   --ExecutePreprocessor.timeout=300 notebooks/Data_Visualization.ipynb
 ```
 
-Or open them and step through:
-
-```bash
-.venv/bin/jupyter notebook notebooks/Ensemble_Abstention_Model_Annotated.ipynb
-```
-
-| Notebook | What it is |
+| Notebook | Contents |
 |---|---|
-| `Ensemble_Abstention_Model.ipynb` | The model. Feature extraction, augmentation, LOPO, final fit, holdout evaluation. |
-| `Ensemble_Abstention_Model_Annotated.ipynb` | Same pipeline, written out with the reasoning at each step, plus a cell for classifying a single new recording. |
-| `Data_Visualization.ipynb` | Produces the nine figures in `figures/`. |
+| `Ensemble_Abstention_Model.ipynb` | Feature extraction, augmentation, LOPO cross-validation, final fit, holdout evaluation. |
+| `Ensemble_Abstention_Model_Annotated.ipynb` | The same pipeline with the reasoning for each step, plus a cell for classifying an arbitrary audio file. |
+| `Data_Visualization.ipynb` | Generates the nine figures in `figures/`. |
 
-The notebooks find the project root by walking up from the working directory until they see `data/` and
-`model/`, so they run from anywhere in the repo. Committed outputs are from a real end-to-end run with no
-cache present — the numbers in this README can be checked against them without executing anything.
+The notebooks locate the project root by walking up from the working directory until `data/` and `model/`
+are found, so they run from any location within the repository. Committed outputs come from a full run with
+no cache present, and the figures above were generated from that same run.
 
-One caveat on exact reproducibility: the classifiers are seeded, but the augmentation RNG is seeded once at
-import rather than per clip, so running the cells out of order shifts which noise draw lands on which clip.
-Headline figures come out identical run to run; individual sub-metrics can move by a point or so.
+The classifiers are seeded. The augmentation RNG is seeded once at import rather than per clip, so executing
+cells out of order changes which noise draw is applied to which clip. Headline figures are stable across
+runs; individual sub-metrics can vary by about a percentage point.
 
-## Limits
+## Limitations
 
-**N=31 pillars is the binding constraint on everything.** Not 508 clips — 31 pillars, because clips from one
-pillar are not independent observations. Every design decision here is downstream of that number: it's why
-there's augmentation instead of more capacity, why it's three sklearn models instead of a CNN, and why the
-holdout is six pillars instead of a proper test set.
+31 pillars is the binding constraint. The relevant sample size is pillars rather than the 508 training
+clips, since clips from one pillar are not independent observations. Augmentation instead of additional
+model capacity, three sklearn models instead of a neural network, and a six-pillar holdout instead of a
+conventional test set are all consequences of that number.
 
-**Six holdout pillars is a small test.** 6/6 is the best result available at this sample size and it still
-has wide error bars. It's evidence the rebuild worked, not proof the model is 100% accurate.
+Six holdout pillars is a small test. 6/6 is the strongest available result at this sample size and carries
+correspondingly wide error bars.
 
-**Recording conditions still aren't controlled.** Everything was recorded handheld. A fixed phone-to-surface
-jig would remove most of the remaining variance, and would probably do more for accuracy than any further
-modelling.
+Recording conditions are uncontrolled. All recordings were taken handheld. A fixed mounting jig would remove
+most of the remaining variance and would likely yield more improvement than further modelling.
 
-**Binary labels flatten a spectrum.** Delamination has degrees, and `bad_21` is what that looks like when
-you force it into two classes.
+Binary labels compress a continuous property. Delamination varies in severity, and `bad_21` illustrates the
+result of forcing a marginal case into two classes.
 
-What I'd do next, in order: 50+ pillars per class recorded under at least three different conditions, a
-recording jig, then severity as an ordinal label rather than a binary one.
+Further work, in order of expected value: 50 or more pillars per class recorded under at least three
+distinct conditions, a fixed recording jig, and severity as an ordinal label in place of a binary one.
 
-## Layout
+## Repository layout
 
 ```
 notebooks/     model, annotated walkthrough, figure generation
-data/          580 wav clips + raw source recordings
+data/          580 wav clips and raw source recordings
 figures/       the nine figures used above
 model/         feature cache, generated on first run (gitignored)
 ```
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The audio recordings are included under the same terms; attribution is
-appreciated if you use the dataset.
+MIT, see [LICENSE](LICENSE). The audio recordings are covered by the same terms; attribution is appreciated
+if the dataset is reused.
