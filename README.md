@@ -196,6 +196,11 @@ figures/       the nine figures used above
 model/         feature cache, generated on first run (gitignored)
 ```
 
+## Credits
+
+Suppawish Sinthaworn, Nattawat Duangsuwong, Bhuvabhat Changduangjit, Suppachai Sinthaworn, and Natt
+Leelawat.
+
 ## License
 
 MIT, see [LICENSE](LICENSE). The audio recordings are covered by the same terms; attribution is appreciated
