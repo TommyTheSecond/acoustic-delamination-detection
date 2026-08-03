@@ -129,8 +129,8 @@ Six held-out pillars:
 | SVM alone | 83.3% (5/6) | 91.7% |
 | First model | 50.0% (3/6) | 56.9% |
 
-Mean `P(bad)` was 13.6% on intact pillars and 82.3% on delaminated ones. 3 of 72 clips abstained, a rate of
-4.2%, corresponding to roughly one knock in a five-knock sequence.
+Mean `P(bad)` was approximately 14% on intact pillars and 82% on delaminated ones. 3 of 72 clips abstained,
+a rate of 4.2%, corresponding to roughly one knock in a five-knock sequence.
 
 ![Per-clip predictions](figures/viz_per_clip_with_abstention.png)
 
@@ -180,17 +180,19 @@ Regenerate the figures. This reads the feature cache, so the model notebook must
 
 | Notebook | Contents |
 |---|---|
-| `Ensemble_Abstention_Model.ipynb` | Feature extraction, augmentation, LOPO cross-validation, final fit, holdout evaluation. |
-| `Ensemble_Abstention_Model_Annotated.ipynb` | The same pipeline with the reasoning for each step, plus a cell for classifying an arbitrary audio file. |
+| `Ensemble_Abstention_Model.ipynb` | Feature extraction, augmentation, LOPO cross-validation, final fit, and holdout evaluation, with the reasoning for each step. The final cell classifies an arbitrary audio file. |
 | `Data_Visualization.ipynb` | Generates the nine figures in `figures/`. |
 
 The notebooks locate the project root by walking up from the working directory until `data/` and `model/`
 are found, so they run from any location within the repository. Committed outputs come from a full run with
 no cache present, and the figures above were generated from that same run.
 
-The classifiers are seeded. The augmentation RNG is seeded once at import rather than per clip, so executing
-cells out of order changes which noise draw is applied to which clip. Headline figures are stable across
-runs; individual sub-metrics can vary by about a percentage point.
+Two sources of run-to-run variation are worth noting. Gradient boosting and the random forest are seeded,
+but the final `SVC(probability=True)` is not, and its Platt calibration runs an unseeded internal
+cross-validation, so mean `P(bad)` values shift by a few tenths of a point between runs. Separately, the
+augmentation RNG is seeded once at import rather than per clip, so executing cells out of order changes
+which noise draw is applied to which clip. Class decisions and every accuracy figure quoted above are
+stable across runs; only the mean probabilities move.
 
 ## Limitations
 
