@@ -201,7 +201,40 @@ model/         feature cache, generated on first run (gitignored)
 Suppawish Sinthaworn, Nattawat Duangsuwong, Bhuvabhat Changduangjit, Suppachai Sinthaworn, and Natt
 Leelawat.
 
+## Citation
+
+If you use this dataset, code, models or figures, you must cite:
+
+> Sinthaworn, S., Duangsuwong, N., Changduangjit, B., Sinthaworn, S., &
+> Leelawat, N. (2026). Automated Concrete Delamination Detection Using
+> Acoustic Sounding and Machine Learning. AIWEST-DR 2026.
+
+```bibtex
+@inproceedings{sinthaworn2026delamination,
+  title     = {Automated Concrete Delamination Detection Using Acoustic Sounding and Machine Learning},
+  author    = {Sinthaworn, Suppawish and Duangsuwong, Nattawat and Changduangjit, Bhuvabhat and Sinthaworn, Suppachai and Leelawat, Natt},
+  booktitle = {AIWEST-DR 2026},
+  year      = {2026}
+}
+```
+
+A machine-readable citation is provided in [CITATION.cff](CITATION.cff).
+
 ## License
 
-MIT, see [LICENSE](LICENSE). The audio recordings are covered by the same terms; attribution is appreciated
-if the dataset is reused.
+[Creative Commons Attribution-NonCommercial 4.0 International](LICENSE)
+(CC BY-NC 4.0), covering the code, the audio dataset, the trained models and
+the figures.
+
+You may share and adapt this material for **non-commercial purposes**,
+provided you give appropriate credit. **Citation is required, not optional** —
+see the Citation section above.
+
+Commercial use is not permitted under this license. For commercial licensing,
+contact the corresponding author: Natt Leelawat (natt.l@chula.ac.th).
+
+## Acknowledgements
+
+This study was supported by the 111th Anniversary Engineering Research
+Catalyst Fund 065/2569 Towards U Top 100, Faculty of Engineering,
+Chulalongkorn University, Thailand (065/2569).

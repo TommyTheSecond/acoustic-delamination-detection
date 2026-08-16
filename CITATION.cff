@@ -1,0 +1,63 @@
+cff-version: 1.2.0
+title: >-
+  Automated Concrete Delamination Detection Using Acoustic Sounding
+  and Machine Learning
+message: >-
+  If you use this dataset, code, trained models or figures in your
+  work, you must cite the conference paper below. Use is restricted
+  to non-commercial purposes under CC BY-NC 4.0.
+type: software
+license: CC-BY-NC-4.0
+authors:
+  - given-names: Suppawish
+    family-names: Sinthaworn
+    affiliation: >-
+      Sirindhorn International Institute of Technology,
+      Thammasat University, Pathum Thani, Thailand
+  - given-names: Nattawat
+    family-names: Duangsuwong
+    affiliation: >-
+      Sirindhorn International Institute of Technology,
+      Thammasat University, Pathum Thani, Thailand
+  - given-names: Bhuvabhat
+    family-names: Changduangjit
+    affiliation: >-
+      Sirindhorn International Institute of Technology,
+      Thammasat University, Pathum Thani, Thailand
+  - given-names: Suppachai
+    family-names: Sinthaworn
+    affiliation: >-
+      Department of Civil and Environmental Engineering,
+      Faculty of Engineering, Srinakharinwirot University, Thailand
+  - given-names: Natt
+    family-names: Leelawat
+    email: natt.l@chula.ac.th
+    affiliation: >-
+      Department of Industrial Engineering, Faculty of Engineering,
+      Chulalongkorn University, Bangkok, Thailand
+keywords:
+  - acoustic sounding
+  - concrete delamination
+  - delamination detection
+  - machine learning
+  - non-destructive testing
+  - hammer sounding
+preferred-citation:
+  type: conference-paper
+  title: >-
+    Automated Concrete Delamination Detection Using Acoustic Sounding
+    and Machine Learning
+  year: 2026
+  conference:
+    name: AIWEST-DR 2026
+  authors:
+    - given-names: Suppawish
+      family-names: Sinthaworn
+    - given-names: Nattawat
+      family-names: Duangsuwong
+    - given-names: Bhuvabhat
+      family-names: Changduangjit
+    - given-names: Suppachai
+      family-names: Sinthaworn
+    - given-names: Natt
+      family-names: Leelawat
